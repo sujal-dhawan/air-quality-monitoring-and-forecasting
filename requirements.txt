@@ -6,3 +6,10 @@ scikit-learn
 streamlit
 prophet
 requests
+plotly
+streamlit
+pandas
+numpy
+matplotlib
+scikit-learn
+
