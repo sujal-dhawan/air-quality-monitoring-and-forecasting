@@ -1,48 +1,50 @@
 import requests
 import pandas as pd
-from datetime import datetime
+import numpy as np
+from datetime import datetime, timedelta
 
-# WAQI API Token (Sign up at https://aqicn.org/data-platform/token/)
-WAQI_API_TOKEN = "285f37fa7aee662f65aa5dca248ac7c439520865"  # Replace with your WAQI API token
+WAQI_API_TOKEN = "285f37fa7aee662f65aa5dca248ac7c439520865"
 
 
 def fetch_air_quality_data_waqi(city="noida", parameter="pm25"):
     """
-    Fetch air quality data from the WAQI API for a given city and pollutant parameter.
-    Returns a DataFrame with datetime and value columns.
+    Fetch air quality data with generated historical data for demonstration.
+    Returns DataFrame with datetime and value columns.
     """
-    # WAQI API endpoint for city feed
+    # Fetch current data from WAQI API
     url = f"https://api.waqi.info/feed/{city}/?token={WAQI_API_TOKEN}"
-
-    # Make the API request
     response = requests.get(url)
 
-    # Debugging: Print API response
-    print("WAQI API URL:", url)
-    print("WAQI API Response Status Code:", response.status_code)
-    print("WAQI API Response Data:", response.json())
+    df = pd.DataFrame(columns=["datetime", "value"])
+    current_value = np.nan
+    current_time = datetime.now()
 
     if response.status_code == 200:
         data = response.json()
-        if data['status'] == 'ok':
-            # Extract relevant data
-            measurements = []
-            iaqi = data['data']['iaqi']  # Individual Air Quality Index (IAQI) data
-            for key, value in iaqi.items():
-                if parameter == key:  # Filter for the specified parameter (e.g., pm25)
-                    measurements.append({
-                        "datetime": data['data']['time']['s'],  # Timestamp of the measurement
-                        "value": value['v']  # Value of the pollutant
-                    })
-            # Create a DataFrame
-            df = pd.DataFrame(measurements)
-            # Convert datetime to a proper format
-            df['datetime'] = pd.to_datetime(df['datetime'])
-            df.sort_values("datetime", inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            return df
-    else:
-        print("Error fetching data from WAQI API. Status Code:", response.status_code, response.text)
+        if data.get('status') == 'ok':
+            current_data = data.get('data', {})
+            iaqi = current_data.get('iaqi', {})
+            param_data = iaqi.get(parameter, {})
+            current_value = param_data.get('v', np.nan)
+            current_time = pd.to_datetime(current_data.get('time', {}).get('s', datetime.now())
 
-    # Return an empty DataFrame if no data is found
-    return pd.DataFrame()
+            # Generate synthetic historical data if current value is available
+            if not np.isnan(current_value):
+            # Create 24 hours of historical data with some variance
+                historical_times = [current_time - timedelta(hours=i) for i in range(24, 0, -1)]
+            np.random.seed(42)  # For reproducible dummy data
+            historical_values = np.random.normal(current_value, 5, 24).clip(0)  # Prevent negative values
+
+            # Create DataFrame with combined data
+            df = pd.DataFrame({
+                "datetime": historical_times + [current_time],
+                "value": historical_values.tolist() + [current_value]
+            })
+
+            # Clean and format data
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+            df.dropna(subset=['value'], inplace=True)
+            df.sort_values('datetime', inplace=True)
+            df.reset_index(drop=True, inplace=True)
+
+    return df

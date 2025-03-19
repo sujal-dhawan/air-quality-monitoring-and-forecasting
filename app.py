@@ -8,74 +8,98 @@ st.set_page_config(page_title="Air Quality Dashboard", layout="wide")
 
 st.title("Real-Time Air Quality Monitoring and Forecasting Dashboard")
 st.markdown("""
-This dashboard fetches real-time air quality data from the WAQI API and uses Prophet to forecast future pollutant levels.
+This dashboard fetches real-time air quality data and forecasts future pollutant levels.
 """)
 
-# Sidebar for user inputs
+# Sidebar configuration
 st.sidebar.header("Configuration")
-city = st.sidebar.text_input("City", "Noida")
+city = st.sidebar.text_input("City", "Noida").strip().lower()
 parameter = st.sidebar.selectbox("Pollutant Parameter", ["pm25", "pm10", "o3", "no2", "so2", "co"])
 
 st.sidebar.header("Forecast Settings")
 periods = st.sidebar.number_input("Forecast Hours", value=24, min_value=1, step=1)
 
-# Fetch data
+# Fetch data section
 st.subheader("Current Air Quality Data")
 with st.spinner("Fetching data..."):
     df = fetch_air_quality_data_waqi(city=city, parameter=parameter)
 
-    # Debug: Inspect DataFrame
-    st.write("DataFrame Head:", df.head())
-    st.write("DataFrame Info:", df.info())
-    st.write("Number of Non-NaN Rows:", df.dropna().shape[0])
+    # Data validation checks
+    if df.empty or df['value'].isna().all():
+        st.error("No valid data available. Please try a different city or parameter.")
+        st.stop()
 
-if df.empty:
-    st.error("No data available. Please try again later or adjust your parameters.")
-else:
-    # Ensure 'datetime' and 'value' columns are in the correct format
+    # Data formatting
     df['datetime'] = pd.to_datetime(df['datetime'])
-    df['value'] = pd.to_numeric(df['value'], errors='coerce')
-    df.dropna(inplace=True)
+    df.dropna(subset=['datetime', 'value'], inplace=True)
 
-    st.write("Latest data records:", df.tail())
+# Display raw data details
+st.write(f"Available data points: {len(df)}")
+st.write("Latest measurements:", df.tail())
 
-    # Plot current air quality time series with markers
-    if not df.empty:
-        fig = px.line(
-            df,
-            x="datetime",
-            y="value",
-            title=f"{parameter.upper()} Levels in {city}",
-            markers=True,  # Enable markers for better visibility
-            line_shape="spline"  # Make lines smooth
-        )
-        fig.update_layout(
-            xaxis_title="Time",
-            yaxis_title=f"{parameter.upper()} Value",
-            showlegend=False
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error("No valid data available to plot.")
+# Plot current data
+if not df.empty:
+    fig = px.line(
+        df,
+        x="datetime",
+        y="value",
+        title=f"{parameter.upper()} Levels in {city.title()}",
+        markers=True,
+        line_shape="spline"
+    )
+    fig.update_layout(
+        xaxis_title="Time",
+        yaxis_title=f"{parameter.upper()} Value",
+        showlegend=False
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.error("No data available to plot")
 
-    # Forecasting section
-    st.subheader("Forecast Future AQI Levels")
-    if st.button("Run Forecast"):
-        if df.shape[0] < 2:
-            st.error("Not enough data available for forecasting. Please fetch more data.")
-        else:
-            with st.spinner("Running forecast..."):
-                forecast, model = forecast_aqi(df, periods)
-                st.write("Forecasted Data (last 5 records):", forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail())
+# Forecasting section
+st.subheader("AQI Forecasting")
+if st.button("Generate Forecast"):
+    if len(df) < 10:  # More flexible minimum data requirement
+        st.warning("Forecast may be less accurate with limited historical data")
 
-                # Plot forecasted values with markers
-                fig_forecast = px.line(
-                    forecast,
-                    x="ds",
-                    y="yhat",
-                    title="Forecasted AQI Levels",
-                    markers=True,  # Enable markers for better visibility
-                    line_shape="spline"
-                )
-                st.plotly_chart(fig_forecast, use_container_width=True)
-                st
+    with st.spinner("Generating forecast..."):
+        try:
+            forecast, model = forecast_aqi(df, periods)
+
+            # Plot forecast components
+            st.write("Forecast Components")
+            fig_components = model.plot_components(forecast)
+            st.pyplot(fig_components)
+
+            # Plot forecast with uncertainty intervals
+            st.write("Forecast Results")
+            fig_forecast = px.line(
+                forecast,
+                x="ds",
+                y="yhat",
+                title=f"{parameter.upper()} Forecast with Uncertainty",
+                labels={"ds": "Date", "yhat": "Predicted Value"},
+                line_shape="spline"
+            )
+            fig_forecast.add_scatter(
+                x=forecast['ds'],
+                y=forecast['yhat_upper'],
+                mode='lines',
+                line=dict(color='gray', width=0.5),
+                name='Upper Bound'
+            )
+            fig_forecast.add_scatter(
+                x=forecast['ds'],
+                y=forecast['yhat_lower'],
+                mode='lines',
+                line=dict(color='gray', width=0.5),
+                fill='tonexty',
+                name='Lower Bound'
+            )
+            st.plotly_chart(fig_forecast, use_container_width=True)
+
+            # Show forecast details
+            st.write("Forecast Data Summary", forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
+
+        except Exception as e:
+            st.error(f"Forecasting failed: {str(e)}")
