@@ -99,7 +99,10 @@ if st.button("Generate Forecast"):
             st.plotly_chart(fig_forecast, use_container_width=True)
 
             # Show forecast details
-            st.write("Forecast Data Summary", forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
+            forecast_display = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+            forecast_display.columns = ["Date", "Predicted Value", "Lower Bound", "Upper Bound"]
+            st.write("Forecast Data Summary", forecast_display)
+
 
         except Exception as e:
             st.error(f"Forecasting failed: {str(e)}")
