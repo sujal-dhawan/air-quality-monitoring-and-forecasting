@@ -26,7 +26,7 @@ def fetch_air_quality_data_waqi(city="noida", parameter="pm25"):
             iaqi = current_data.get('iaqi', {})
             param_data = iaqi.get(parameter, {})
             current_value = param_data.get('v', np.nan)
-            current_time = pd.to_datetime(current_data.get('time', {}).get('s', datetime.now())
+            current_time = pd.to_datetime(current_data.get('time', {}).get('s', datetime.now()))
 
             # Generate synthetic historical data if current value is available
             if not np.isnan(current_value):
