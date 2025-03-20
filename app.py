@@ -7,6 +7,7 @@ from forecast import forecast_aqi
 st.set_page_config(page_title="Air Quality Dashboard", layout="wide")
 
 st.title("Real-Time Air Quality Monitoring and Forecasting Dashboard")
+st.markdown("<small>by Sujal Dhawan</small>", unsafe_allow_html=True)
 st.markdown("""
 This dashboard fetches real-time air quality data and forecasts future pollutant levels.
 """)
